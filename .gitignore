@@ -1,0 +1,7 @@
+/target
+/files
+/transcription_output
+*.json
+*.json.runpod
+*.json
+*.json.webhook
