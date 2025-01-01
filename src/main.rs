@@ -1,6 +1,8 @@
+use dotenv::dotenv;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::env;
 use std::error::Error;
 use std::fs;
 use std::fs::File;
@@ -9,10 +11,7 @@ use std::io::{self, Write};
 use std::path::Path;
 use std::time::Duration;
 use tokio::time::sleep;
-use dotenv::dotenv;
-use std::env;
 mod process_transcriptions;
-
 
 const API_URL: &'static str = "https://api.runpod.ai/v2/oq0i26ut0lom1h";
 
@@ -56,7 +55,11 @@ struct ApiResponse {
     output: Option<RunPodResult>,
 }
 
-async fn runpod(url: &str, request_client: &Client, runpod_api_key: &str) -> Result<RunPodResult, Box<dyn Error>> {
+async fn runpod(
+    url: &str,
+    request_client: &Client,
+    runpod_api_key: &str,
+) -> Result<RunPodResult, Box<dyn Error>> {
     let payload = json!({
         "input": {
             "audio": url,
@@ -74,7 +77,6 @@ async fn runpod(url: &str, request_client: &Client, runpod_api_key: &str) -> Res
             "logprob_threshold": -1,
             "no_speech_threshold": 0.6,
             "word_timestamps": true,
-            "language": "pt",
         },
         "enable_vad": false,
     });
@@ -121,7 +123,11 @@ async fn runpod(url: &str, request_client: &Client, runpod_api_key: &str) -> Res
     }
 }
 
-async fn read_dir(dir: &str, request_client: &Client, runpod_api_key: &str) -> Result<(), Box<dyn Error>> {
+async fn read_dir(
+    dir: &str,
+    request_client: &Client,
+    runpod_api_key: &str,
+) -> Result<(), Box<dyn Error>> {
     let path = Path::new(dir);
     let output_dir = Path::new("./files");
 
@@ -136,15 +142,13 @@ async fn read_dir(dir: &str, request_client: &Client, runpod_api_key: &str) -> R
                 let lines = io::BufReader::new(file).lines();
                 for (_idx, line) in lines.enumerate() {
                     if let Ok(l) = line {
-                        if l.contains("mp4_s3_path") {
-                            if let Some(s) = l.split(": ").nth(1) {
-                                let s = s.trim_matches(&['"', ','][..]);
+                        if l.contains("\"mp4\": \"") {
+                            if let Some(s) = l.split(": \"").nth(1) {
+                                let s = s.trim_matches(&['"', ',', ' '][..]);
                                 dbg!(s);
 
-                                let output_file = output_dir.join(format!(
-                                    "{}.runpod",
-                                    filename.to_str().unwrap()
-                                ));
+                                let output_file = output_dir
+                                    .join(format!("{}.runpod", filename.to_str().unwrap()));
                                 let mut out = File::create(output_file)?;
                                 let output = runpod(s, request_client, runpod_api_key).await?;
                                 writeln!(out, "{}", serde_json::to_string(&output).unwrap())?
